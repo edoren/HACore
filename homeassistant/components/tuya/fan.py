@@ -31,6 +31,7 @@ TUYA_SUPPORT_TYPE = {
     "fskg",  # Fan wall switch
     "kj",  # Air Purifier
     "cs",  # Dehumidifier
+    "ks"   # Fan Klarstein
 }
 
 
@@ -132,28 +133,7 @@ class TuyaFanEntity(TuyaEntity, FanEntity):
 
     def set_percentage(self, percentage: int) -> None:
         """Set the speed of the fan, as a percentage."""
-        if self._speed is not None:
-            self._send_command(
-                [
-                    {
-                        "code": self._speed.dpcode,
-                        "value": int(self._speed.remap_value_from(percentage, 1, 100)),
-                    }
-                ]
-            )
-            return
-
-        if self._speeds is not None:
-            self._send_command(
-                [
-                    {
-                        "code": self._speeds.dpcode,
-                        "value": percentage_to_ordered_list_item(
-                            self._speeds.range, percentage
-                        ),
-                    }
-                ]
-            )
+        self.turn_on(percentage)
 
     def turn_off(self, **kwargs: Any) -> None:
         """Turn the fan off."""
@@ -169,27 +149,28 @@ class TuyaFanEntity(TuyaEntity, FanEntity):
         if self._switch is None:
             return
 
-        commands: list[dict[str, str | bool | int]] = [
-            {"code": self._switch, "value": True}
-        ]
+        commands: list[dict[str, str | bool | int]] = []
+        if not self.is_on:
+            commands.append({"code": self._switch, "value": True})
 
-        if percentage is not None and self._speed is not None:
-            commands.append(
-                {
-                    "code": self._speed.dpcode,
-                    "value": int(self._speed.remap_value_from(percentage, 1, 100)),
-                }
-            )
+        if percentage is not None:
+            if self._speed is not None:
+                commands.append(
+                    {
+                        "code": self._speed.dpcode,
+                        "value": int(self._speed.remap_value_from(percentage, 1, 100)),
+                    }
+                )
 
-        if percentage is not None and self._speeds is not None:
-            commands.append(
-                {
-                    "code": self._speeds.dpcode,
-                    "value": percentage_to_ordered_list_item(
-                        self._speeds.range, percentage
-                    ),
-                }
-            )
+            if self._speeds is not None:
+                commands.append(
+                    {
+                        "code": self._speeds.dpcode,
+                        "value": percentage_to_ordered_list_item(
+                            self._speeds.range, percentage
+                        ),
+                    }
+                )
 
         if preset_mode is not None and self._presets is not None:
             commands.append({"code": self._presets.dpcode, "value": preset_mode})

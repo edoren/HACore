@@ -237,6 +237,14 @@ SELECTS: dict[str, tuple[SelectEntityDescription, ...]] = {
             translation_key="countdown",
         ),
     ),
+    "ks": (
+        SelectEntityDescription(
+            key=DPCode.COUNTDOWN_SET,
+            name="Sleep Timer",
+            icon="mdi:timer",
+            entity_category=EntityCategory.CONFIG,
+        ),
+    ),
     # Curtain
     # https://developer.tuya.com/en/docs/iot/f?id=K9gf46o5mtfyc
     "cl": (

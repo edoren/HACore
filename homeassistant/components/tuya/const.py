@@ -326,8 +326,10 @@ class DPCode(StrEnum):
     TEMP_CONTROLLER = "temp_controller"
     TEMP_CURRENT = "temp_current"  # Current temperature in °C
     TEMP_CURRENT_F = "temp_current_f"  # Current temperature in °F
+    TEMP_C_DISP = "temp_c_disp"  # Current temperature in °C
     TEMP_INDOOR = "temp_indoor"  # Indoor temperature in °C
     TEMP_SET = "temp_set"  # Set the temperature in °C
+    TEMP_C_SET = "temp_c_set"  # Set the temperature in °C, Klarstein devices
     TEMP_SET_F = "temp_set_f"  # Set the temperature in °F
     TEMP_UNIT_CONVERT = "temp_unit_convert"  # Temperature unit switching
     TEMP_VALUE = "temp_value"  # Color temperature
@@ -335,6 +337,7 @@ class DPCode(StrEnum):
     TEMPER_ALARM = "temper_alarm"  # Tamper alarm
     TIME_TOTAL = "time_total"
     TIME_USE = "time_use"  # Total seconds of irrigation
+    TIMER = "timer"
     TOTAL_CLEAN_AREA = "total_clean_area"
     TOTAL_CLEAN_COUNT = "total_clean_count"
     TOTAL_CLEAN_TIME = "total_clean_time"

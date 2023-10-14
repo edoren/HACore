@@ -19,12 +19,21 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import HomeAssistantTuyaData
 from .base import TuyaEntity
-from .const import DOMAIN, TUYA_DISCOVERY_NEW, DPCode
+from .const import DOMAIN, TUYA_DISCOVERY_NEW, DPCode, LOGGER
 
 # All descriptions can be found here. Mostly the Boolean data types in the
 # default instruction set of each category end up being a Switch.
 # https://developer.tuya.com/en/docs/iot/standarddescription?id=K9i5ql6waswzq
 SWITCHES: dict[str, tuple[SwitchEntityDescription, ...]] = {
+    # Klarstein Fan Conditioner
+    "ks": (
+        SwitchEntityDescription(
+            key=DPCode.FAN_COOL,
+            name="Cool Wind",
+            icon="mdi:snowflake",
+            entity_category=EntityCategory.CONFIG,
+        ),
+    ),
     # Smart Kettle
     # https://developer.tuya.com/en/docs/iot/fbh?id=K9gf484m21yq7
     "bh": (
@@ -279,6 +288,12 @@ SWITCHES: dict[str, tuple[SwitchEntityDescription, ...]] = {
         SwitchEntityDescription(
             key=DPCode.LOCK,
             translation_key="child_lock",
+            entity_category=EntityCategory.CONFIG,
+        ),
+        SwitchEntityDescription(
+            key=DPCode.SLEEP,
+            name="Sleep",
+            icon="mdi:power-sleep",
             entity_category=EntityCategory.CONFIG,
         ),
     ),
@@ -671,6 +686,7 @@ async def async_setup_entry(
         entities: list[TuyaSwitchEntity] = []
         for device_id in device_ids:
             device = hass_data.manager.device_map[device_id]
+            LOGGER.debug(f"Tuya Device: {device}")
             if descriptions := SWITCHES.get(device.category):
                 entities.extend(
                     TuyaSwitchEntity(device, hass_data.manager, description)

@@ -1,6 +1,7 @@
 {
   "domain": "tuya",
-  "name": "Tuya",
+  "name": "Soy Tuya",
+  "version": "0.1.0-edoren",
   "codeowners": ["@Tuya", "@zlinoliver", "@frenck"],
   "config_flow": true,
   "dependencies": ["ffmpeg"],
@@ -40,7 +41,6 @@
     }
   ],
   "documentation": "https://www.home-assistant.io/integrations/tuya",
-  "integration_type": "hub",
   "iot_class": "cloud_push",
   "loggers": ["tuya_iot"],
   "requirements": ["tuya-device-sharing-sdk==0.1.9"]

@@ -168,6 +168,14 @@ NUMBERS: dict[str, tuple[NumberEntityDescription, ...]] = {
             entity_category=EntityCategory.CONFIG,
         ),
     ),
+    "kt": (
+        NumberEntityDescription(
+            key=DPCode.TIMER,
+            name="Sleep Timer",
+            icon="mdi:timer",
+            entity_category=EntityCategory.CONFIG,
+        ),
+    ),
     # Dimmer Switch
     # https://developer.tuya.com/en/docs/iot/categorytgkg?id=Kaiuz0ktx7m0o
     "tgkg": (
