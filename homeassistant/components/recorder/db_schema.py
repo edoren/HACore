@@ -35,12 +35,17 @@ from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.orm import DeclarativeBase, Mapped, aliased, mapped_column, relationship
 from sqlalchemy.types import TypeDecorator
 
+from homeassistant.components.sensor import ATTR_STATE_CLASS
 from homeassistant.const import (
+    ATTR_DEVICE_CLASS,
+    ATTR_FRIENDLY_NAME,
+    ATTR_UNIT_OF_MEASUREMENT,
+    MATCH_ALL,
     MAX_LENGTH_EVENT_EVENT_TYPE,
     MAX_LENGTH_STATE_ENTITY_ID,
     MAX_LENGTH_STATE_STATE,
 )
-from homeassistant.core import Context, Event, EventOrigin, State
+from homeassistant.core import Context, Event, EventOrigin, EventStateChangedData, State
 from homeassistant.helpers.json import JSON_DUMP, json_bytes, json_bytes_strip_null
 import homeassistant.util.dt as dt_util
 from homeassistant.util.json import (
@@ -135,6 +140,13 @@ _DEFAULT_TABLE_ARGS = {
     "mariadb_default_charset": MYSQL_DEFAULT_CHARSET,
     "mariadb_collate": MYSQL_COLLATE,
     "mariadb_engine": MYSQL_ENGINE,
+}
+
+_MATCH_ALL_KEEP = {
+    ATTR_DEVICE_CLASS,
+    ATTR_STATE_CLASS,
+    ATTR_UNIT_OF_MEASUREMENT,
+    ATTR_FRIENDLY_NAME,
 }
 
 
@@ -478,10 +490,10 @@ class States(Base):
         return date_time.isoformat(sep=" ", timespec="seconds")
 
     @staticmethod
-    def from_event(event: Event) -> States:
+    def from_event(event: Event[EventStateChangedData]) -> States:
         """Create object from a state_changed event."""
         entity_id = event.data["entity_id"]
-        state: State | None = event.data.get("new_state")
+        state = event.data["new_state"]
         dbstate = States(
             entity_id=entity_id,
             attributes=None,
@@ -576,19 +588,24 @@ class StateAttributes(Base):
 
     @staticmethod
     def shared_attrs_bytes_from_event(
-        event: Event,
+        event: Event[EventStateChangedData],
         dialect: SupportedDialect | None,
     ) -> bytes:
         """Create shared_attrs from a state_changed event."""
-        state: State | None = event.data.get("new_state")
         # None state means the state was removed from the state machine
-        if state is None:
+        if (state := event.data["new_state"]) is None:
             return b"{}"
         if state_info := state.state_info:
+            unrecorded_attributes = state_info["unrecorded_attributes"]
             exclude_attrs = {
                 *ALL_DOMAIN_EXCLUDE_ATTRS,
-                *state_info["unrecorded_attributes"],
+                *unrecorded_attributes,
             }
+            if MATCH_ALL in unrecorded_attributes:
+                # Don't exclude device class, state class, unit of measurement
+                # or friendly name when using the MATCH_ALL exclude constant
+                exclude_attrs.update(state.attributes)
+                exclude_attrs -= _MATCH_ALL_KEEP
         else:
             exclude_attrs = ALL_DOMAIN_EXCLUDE_ATTRS
         encoder = json_bytes_strip_null if dialect == PSQL_DIALECT else json_bytes

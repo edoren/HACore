@@ -44,7 +44,7 @@ async def setup_config_entry(
 ) -> list[Platform]:
     """Fixture to setup the config entry."""
     await hass.config_entries.async_setup(config_entry.entry_id)
-    assert config_entry.state == ConfigEntryState.LOADED
+    assert config_entry.state is ConfigEntryState.LOADED
 
 
 @pytest.mark.parametrize(
@@ -270,13 +270,11 @@ async def test_switch_error(
 
     with pytest.raises(HomeAssistantError, match=expected_msg):
         await switch_common.async_turn_on(hass, "switch.rain_bird_sprinkler_3")
-        await hass.async_block_till_done()
 
     responses.append(mock_response_error(status=status))
 
     with pytest.raises(HomeAssistantError, match=expected_msg):
         await switch_common.async_turn_off(hass, "switch.rain_bird_sprinkler_3")
-        await hass.async_block_till_done()
 
 
 @pytest.mark.parametrize(
@@ -298,7 +296,7 @@ async def test_no_unique_id(
     responses.insert(0, mock_response_error(HTTPStatus.SERVICE_UNAVAILABLE))
 
     await hass.config_entries.async_setup(config_entry.entry_id)
-    assert config_entry.state == ConfigEntryState.LOADED
+    assert config_entry.state is ConfigEntryState.LOADED
 
     zone = hass.states.get("switch.rain_bird_sprinkler_3")
     assert zone is not None

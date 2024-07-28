@@ -126,9 +126,9 @@ async def async_api_discovery(
             continue
         try:
             discovered_serialized_entity = alexa_entity.serialize_discovery()
-        except Exception as exc:  # pylint: disable=broad-except
+        except Exception:
             _LOGGER.exception(
-                "Unable to serialize %s for discovery: %s", alexa_entity.entity_id, exc
+                "Unable to serialize %s for discovery", alexa_entity.entity_id
             )
         else:
             discovery_endpoints.append(discovered_serialized_entity)
@@ -1497,7 +1497,7 @@ async def async_api_adjust_range(
     if instance == f"{cover.DOMAIN}.{cover.ATTR_POSITION}":
         range_delta = int(range_delta * 20) if range_delta_default else int(range_delta)
         service = SERVICE_SET_COVER_POSITION
-        if not (current := entity.attributes.get(cover.ATTR_POSITION)):
+        if not (current := entity.attributes.get(cover.ATTR_CURRENT_POSITION)):
             msg = f"Unable to determine {entity.entity_id} current position"
             raise AlexaInvalidValueError(msg)
         position = response_value = min(100, max(0, range_delta + current))

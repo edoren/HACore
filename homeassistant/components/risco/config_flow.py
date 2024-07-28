@@ -105,9 +105,9 @@ async def validate_local_input(
         )
         try:
             await risco.connect()
-        except CannotConnectError as e:
+        except CannotConnectError:
             if comm_delay >= MAX_COMMUNICATION_DELAY:
-                raise e
+                raise
             comm_delay += 1
         else:
             break
@@ -159,7 +159,7 @@ class RiscoConfigFlow(ConfigFlow, domain=DOMAIN):
                 errors["base"] = "cannot_connect"
             except UnauthorizedError:
                 errors["base"] = "invalid_auth"
-            except Exception:  # pylint: disable=broad-except
+            except Exception:
                 _LOGGER.exception("Unexpected exception")
                 errors["base"] = "unknown"
             else:
@@ -197,7 +197,7 @@ class RiscoConfigFlow(ConfigFlow, domain=DOMAIN):
                 errors["base"] = "cannot_connect"
             except UnauthorizedError:
                 errors["base"] = "invalid_auth"
-            except Exception:  # pylint: disable=broad-except
+            except Exception:
                 _LOGGER.exception("Unexpected exception")
                 errors["base"] = "unknown"
             else:

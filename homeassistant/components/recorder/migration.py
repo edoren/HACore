@@ -24,7 +24,7 @@ from sqlalchemy.exc import (
     SQLAlchemyError,
 )
 from sqlalchemy.orm.session import Session
-from sqlalchemy.schema import AddConstraint, DropConstraint
+from sqlalchemy.schema import AddConstraint, CreateTable, DropConstraint
 from sqlalchemy.sql.expression import true
 from sqlalchemy.sql.lambdas import StatementLambdaElement
 
@@ -183,8 +183,8 @@ def get_schema_version(session_maker: Callable[[], Session]) -> int | None:
     try:
         with session_scope(session=session_maker(), read_only=True) as session:
             return _get_schema_version(session)
-    except Exception as err:  # pylint: disable=broad-except
-        _LOGGER.exception("Error when determining DB schema version: %s", err)
+    except Exception:
+        _LOGGER.exception("Error when determining DB schema version")
         return None
 
 
@@ -313,11 +313,9 @@ def _create_index(
     index = index_list[0]
     _LOGGER.debug("Creating %s index", index_name)
     _LOGGER.warning(
-        (
-            "Adding index `%s` to table `%s`. Note: this can take several "
-            "minutes on large databases and slow computers. Please "
-            "be patient!"
-        ),
+        "Adding index `%s` to table `%s`. Note: this can take several "
+        "minutes on large databases and slow computers. Please "
+        "be patient!",
         index_name,
         table_name,
     )
@@ -331,7 +329,7 @@ def _create_index(
                 "Index %s already exists on %s, continuing", index_name, table_name
             )
 
-    _LOGGER.debug("Finished creating %s", index_name)
+    _LOGGER.warning("Finished adding index `%s` to table `%s`", index_name, table_name)
 
 
 def _execute_or_collect_error(
@@ -341,10 +339,10 @@ def _execute_or_collect_error(
     with session_scope(session=session_maker()) as session:
         try:
             session.connection().execute(text(query))
-            return True
         except SQLAlchemyError as err:
             errors.append(str(err))
-    return False
+            return False
+        return True
 
 
 def _drop_index(
@@ -364,11 +362,9 @@ def _drop_index(
     DO NOT USE THIS FUNCTION IN ANY OPERATION THAT TAKES USER INPUT.
     """
     _LOGGER.warning(
-        (
-            "Dropping index `%s` from table `%s`. Note: this can take several "
-            "minutes on large databases and slow computers. Please "
-            "be patient!"
-        ),
+        "Dropping index `%s` from table `%s`. Note: this can take several "
+        "minutes on large databases and slow computers. Please "
+        "be patient!",
         index_name,
         table_name,
     )
@@ -377,8 +373,8 @@ def _drop_index(
         index_to_drop = get_index_by_name(session, table_name, index_name)
 
     if index_to_drop is None:
-        _LOGGER.debug(
-            "The index %s on table %s no longer exists", index_name, table_name
+        _LOGGER.warning(
+            "The index `%s` on table `%s` no longer exists", index_name, table_name
         )
         return
 
@@ -395,18 +391,16 @@ def _drop_index(
         f"DROP INDEX {index_to_drop}",
     ):
         if _execute_or_collect_error(session_maker, query, errors):
-            _LOGGER.debug(
-                "Finished dropping index %s from table %s", index_name, table_name
+            _LOGGER.warning(
+                "Finished dropping index `%s` from table `%s`", index_name, table_name
             )
             return
 
     if not quiet:
         _LOGGER.warning(
-            (
-                "Failed to drop index `%s` from table `%s`. Schema "
-                "Migration will continue; this is not a "
-                "critical operation: %s"
-            ),
+            "Failed to drop index `%s` from table `%s`. Schema "
+            "Migration will continue; this is not a "
+            "critical operation: %s",
             index_name,
             table_name,
             errors,
@@ -439,11 +433,12 @@ def _add_columns(
                     )
                 )
             )
-            return
         except (InternalError, OperationalError, ProgrammingError):
             # Some engines support adding all columns at once,
             # this error is when they don't
             _LOGGER.info("Unable to use quick column add. Adding 1 by 1")
+        else:
+            return
 
     for column_def in columns_def:
         with session_scope(session=session_maker()) as session:
@@ -491,7 +486,7 @@ def _modify_columns(
     if engine.dialect.name == SupportedDialect.POSTGRESQL:
         columns_def = [
             "ALTER {column} TYPE {type}".format(
-                **dict(zip(["column", "type"], col_def.split(" ", 1)))
+                **dict(zip(["column", "type"], col_def.split(" ", 1), strict=False))
             )
             for col_def in columns_def
         ]
@@ -510,9 +505,10 @@ def _modify_columns(
                     )
                 )
             )
-            return
         except (InternalError, OperationalError):
             _LOGGER.info("Unable to use quick column modify. Modifying 1 by 1")
+        else:
+            return
 
     for column_def in columns_def:
         with session_scope(session=session_maker()) as session:
@@ -1736,14 +1732,15 @@ def cleanup_legacy_states_event_ids(instance: Recorder) -> bool:
         # Only drop the index if there are no more event_ids in the states table
         # ex all NULL
         assert instance.engine is not None, "engine should never be None"
-        if instance.dialect_name != SupportedDialect.SQLITE:
+        if instance.dialect_name == SupportedDialect.SQLITE:
             # SQLite does not support dropping foreign key constraints
-            # so we can't drop the index at this time but we can avoid
-            # looking for legacy rows during purge
+            # so we have to rebuild the table
+            rebuild_sqlite_table(session_maker, instance.engine, States)
+        else:
             _drop_foreign_key_constraints(
                 session_maker, instance.engine, TABLE_STATES, ["event_id"]
             )
-            _drop_index(session_maker, "states", LEGACY_STATES_EVENT_ID_INDEX)
+        _drop_index(session_maker, "states", LEGACY_STATES_EVENT_ID_INDEX)
         instance.use_legacy_events_index = False
 
     return True
@@ -1786,8 +1783,8 @@ def initialize_database(session_maker: Callable[[], Session]) -> bool:
         with session_scope(session=session_maker()) as session:
             return _initialize_database(session)
 
-    except Exception as err:  # pylint: disable=broad-except
-        _LOGGER.exception("Error when initialise database: %s", err)
+    except Exception:
+        _LOGGER.exception("Error when initialise database")
         return False
 
 
@@ -1892,3 +1889,68 @@ def _mark_migration_done(
             migration_id=migration.migration_id, version=migration.migration_version
         )
     )
+
+
+def rebuild_sqlite_table(
+    session_maker: Callable[[], Session], engine: Engine, table: type[Base]
+) -> None:
+    """Rebuild an SQLite table.
+
+    This must only be called after all migrations are complete
+    and the database is in a consistent state.
+
+    If the table is not migrated to the current schema this
+    will likely fail.
+    """
+    table_table = cast(Table, table.__table__)
+    orig_name = table_table.name
+    temp_name = f"{table_table.name}_temp_{int(time())}"
+
+    _LOGGER.warning(
+        "Rebuilding SQLite table %s; This will take a while; Please be patient!",
+        orig_name,
+    )
+
+    try:
+        # 12 step SQLite table rebuild
+        # https://www.sqlite.org/lang_altertable.html
+        with session_scope(session=session_maker()) as session:
+            # Step 1 - Disable foreign keys
+            session.connection().execute(text("PRAGMA foreign_keys=OFF"))
+        # Step 2 - create a transaction
+        with session_scope(session=session_maker()) as session:
+            # Step 3 - we know all the indexes, triggers, and views associated with table X
+            new_sql = str(CreateTable(table_table).compile(engine)).strip("\n") + ";"
+            source_sql = f"CREATE TABLE {orig_name}"
+            replacement_sql = f"CREATE TABLE {temp_name}"
+            assert source_sql in new_sql, f"{source_sql} should be in new_sql"
+            new_sql = new_sql.replace(source_sql, replacement_sql)
+            # Step 4 - Create temp table
+            session.execute(text(new_sql))
+            column_names = ",".join([column.name for column in table_table.columns])
+            # Step 5 - Transfer content
+            sql = f"INSERT INTO {temp_name} SELECT {column_names} FROM {orig_name};"  # noqa: S608
+            session.execute(text(sql))
+            # Step 6 - Drop the original table
+            session.execute(text(f"DROP TABLE {orig_name}"))
+            # Step 7 - Rename the temp table
+            session.execute(text(f"ALTER TABLE {temp_name} RENAME TO {orig_name}"))
+            # Step 8 - Recreate indexes
+            for index in table_table.indexes:
+                index.create(session.connection())
+            # Step 9 - Recreate views (there are none)
+            # Step 10 - Check foreign keys
+            session.execute(text("PRAGMA foreign_key_check"))
+            # Step 11 - Commit transaction
+            session.commit()
+    except SQLAlchemyError:
+        _LOGGER.exception("Error recreating SQLite table %s", table_table.name)
+        # Swallow the exception since we do not want to ever raise
+        # an integrity error as it would cause the database
+        # to be discarded and recreated from scratch
+    else:
+        _LOGGER.warning("Rebuilding SQLite table %s finished", orig_name)
+    finally:
+        with session_scope(session=session_maker()) as session:
+            # Step 12 - Re-enable foreign keys
+            session.connection().execute(text("PRAGMA foreign_keys=ON"))

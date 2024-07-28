@@ -58,7 +58,7 @@ class CachingStaticResource(StaticResource):
                 raise
             except Exception as error:
                 # perm error or other kind!
-                request.app.logger.exception(error)
+                request.app.logger.exception("Unexpected exception")
                 raise HTTPNotFound from error
 
             content_type: str | None = None
@@ -80,4 +80,4 @@ class CachingStaticResource(StaticResource):
                 },
             )
 
-        return await super()._handle(request)
+        raise HTTPForbidden if filepath is None else HTTPNotFound

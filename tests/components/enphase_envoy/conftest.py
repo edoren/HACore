@@ -2,6 +2,7 @@
 
 from unittest.mock import AsyncMock, Mock, patch
 
+import jwt
 from pyenphase import (
     Envoy,
     EnvoyData,
@@ -338,11 +339,22 @@ def mock_envoy_fixture(
         raw={"varies_by": "firmware_version"},
     )
     mock_envoy.update = AsyncMock(return_value=mock_envoy.data)
+
+    response = Mock()
+    response.status_code = 200
+    response.text = "Testing request \nreplies."
+    response.headers = {"Hello": "World"}
+    mock_envoy.request = AsyncMock(return_value=response)
+
     return mock_envoy
 
 
 @pytest.fixture(name="setup_enphase_envoy")
-async def setup_enphase_envoy_fixture(hass, config, mock_envoy):
+async def setup_enphase_envoy_fixture(
+    hass: HomeAssistant,
+    config,
+    mock_envoy,
+):
     """Define a fixture to set up Enphase Envoy."""
     with (
         patch(
@@ -368,7 +380,10 @@ def mock_authenticate():
 @pytest.fixture(name="mock_auth")
 def mock_auth(serial_number):
     """Define a mocked EnvoyAuth fixture."""
-    return EnvoyTokenAuth("127.0.0.1", token="abc", envoy_serial=serial_number)
+    token = jwt.encode(
+        payload={"name": "envoy", "exp": 1907837780}, key="secret", algorithm="HS256"
+    )
+    return EnvoyTokenAuth("127.0.0.1", token=token, envoy_serial=serial_number)
 
 
 @pytest.fixture(name="mock_setup")
